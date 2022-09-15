@@ -19,7 +19,6 @@
 
 var createError = require('http-errors');
 const express = require('express');
-const pug = require('pug');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
@@ -37,9 +36,6 @@ const approutes = require('./routes/approutes');
 let debug_info = require('debug')('mqapp-app:info');
 let debug_warn = require('debug')('mqapp-app:warn');
 
-//view engine
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'pug');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

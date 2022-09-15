@@ -24,71 +24,63 @@ let mqclient = new MQClient();
 let debug_info = require('debug')('mqapp-approutes:info');
 let debug_warn = require('debug')('mqapp-approutes:warn');
 
-const APPTITLE = 'MQ apps on CodeEngine';
-const DEFAULT_LIMIT = 10;
-
-// GET home page
-router.get('/', (req, res, next) => {
-  debug_info('Routing to /')
-  res.render('index', {
-    title: APPTITLE
-  });
-});
-
-
-// Put page, containing form for messages to send
-router.get('/mqput', (req, res, next) => {
-  debug_info('Routing to /mqput');
-  res.render('mqput', {status: ''});
-});
-
-
-// Get page, containing form for numbrer of messages to get
-router.get('/mqget', (req, res, next) => {
-  debug_info('Routing to /mqget');
-  res.render('mqget', {status: ''});
-});
-
+const DEFAULT_LIMIT = 1;
 
 // PUT API expects input containing message and
 // quantity.
 router.post('/api/mqput', (req, res, next) => {
-  debug_info('Routing to /api/mqput');
 
-  let data = req.body;
-  debug_info('MQ Put Request submitted for ', data);
+  try{
 
-  let putRequest = {
-    message : 'Message app running in Cloud Engine',
-    quantity : 1
-  }
-  if (data.message) {
-    putRequest.message = data.message;
-  }
-  if (data.quantity) {
-    putRequest.quantity = data.quantity;
-    if (putRequest.quantity < 0) {
-      debug_info('negating the negative quantity provided!');
-      putRequest.quantity *= -1;
-    } else if (putRequest.quantity === 0) {
-      putRequest.quantity = 1;
+    debug_info('Routing to /api/mqput');
+
+    let data = req.body;  
+    debug_info('MQ Put Request submitted for ', data);
+
+    let _message = data.message || 'Default Message app running in Cloud Engine';
+    let _quantityInString = data.quantity || "";
+    let _quantityInNumber = parseInt(_quantityInString);
+
+    if(_quantityInNumber) {
+      if(_quantityInNumber < 0 ){
+        debug_info('negating the negative quantity provided!');
+        _quantityInNumber *= -1; 
+      } else if (_quantityInNumber === 0) {
+        _quantityInNumber = 1;
+      }
+    } else {
+      debug_info("Wrong quantity");
+      return res.status(500).send({
+        error : "Please provide a valid input"
+      })
+    }    
+
+    let putRequest = {
+      message : _message,
+      quantity : _quantityInNumber
     }
+   
+    debug_info("Attempting MQ Put for ", putRequest);  
+
+    mqclient.put(putRequest)
+    .then((statusMsg) => {
+      res.json({
+        status: statusMsg
+      });
+    })
+    .catch((err) => {
+      debug_warn("Put has failed with error : ", err);
+      return res.status(500).send({
+        error: err
+      });
+    });
+
+  }catch(err) {
+    debug_warn("Error: " + err);
+    return res.status(500).send({
+      error : err
+    })
   }
-
-  debug_info("Attempting MQ Put for ", putRequest);
-
-  mqclient.put(putRequest)
-  .then((statusMsg) => {
-    res.json({
-      status: statusMsg
-    });
-  })
-  .catch((err) => {
-    debug_warn("Put has failed with error : ", err);
-    res.status(500).send({
-      error: err
-    });
-  });
 
 });
 
@@ -96,24 +88,33 @@ router.post('/api/mqput', (req, res, next) => {
 // GET API expects query input for number of messages to get
 router.get('/api/mqget', function(req, res, next) {
   debug_info('Routing to /api/mqget');
-
-  let querydata = req.query;
+  
+  let querydata = req.query;   
   debug_info('MQ Get Request submitted for ', querydata);
 
-  let getLimit = DEFAULT_LIMIT;
-  if (querydata && querydata.limit && !isNaN(querydata.limit)) {
-    getLimit = querydata.limit;
-  }
+  let getLimitInString = querydata.limit || DEFAULT_LIMIT;    
+  let getLimitAsNumber = parseInt(getLimitInString);
 
-  mqclient.get(getLimit)
-  .then((data) => {
-    res.json(data);
-  })
-  .catch((err) => {
-    res.status(500).send({
-      error: err
+  if (getLimitAsNumber && getLimitAsNumber > 0) {
+
+    mqclient.get(getLimitAsNumber)
+    .then((data) => {
+      res.json(data);
+    })
+    .catch((err) => {
+      return res.status(500).send({
+        error : err
+      });
     });
-  });
+
+  } else {
+    debug_info("Error on input");
+    return res.status(500).send({
+      error : "Please provide a valid input."
+    })
+  }
+    
+
 });
 
 // Getbyid API expects msgid as a query input. The api
